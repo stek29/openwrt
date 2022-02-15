@@ -2,7 +2,7 @@
 #
 
 import subprocess
-import requests
+from urllib import request
 import json
 import time
 import argparse
@@ -61,19 +61,28 @@ class PresenceDetector:
             body.update(self.settings.params[client])
 
         try:
-            response = requests.post(f'{self.settings.hass_url}/api/services/device_tracker/see', json=body,
-                                     headers={'Authorization': f'Bearer {self.settings.hass_token}'})
-            self.logger.log(f"API Response: {response.content}", is_debug=True)
+            req = request.Request(
+                f'{self.settings.hass_url}/api/services/device_tracker/see',
+                method='POST',
+                data=json.dumps(body).encode('utf-8'),
+                headers={
+                    'Authorization': f'Bearer {self.settings.hass_token}',
+                    'Content-Type': 'application/json',
+                },
+            )
+            response = request.urlopen(req)
+            resp = response.read().decode('utf-8')
+            self.logger.log(f"API Response: {resp}", is_debug=True)
         except Exception as e:
             self.logger.log(str(e), is_debug=True)
             # Force full sync when HA returns
             self.full_sync_counter = 0
             return False
 
-        if not response.ok:
+        if response.status >= 400:
             self.full_sync_counter = 0
 
-        return response.ok
+        return response.status < 400
 
     def full_sync(self):
         # Sync state of all devices once every X polls
